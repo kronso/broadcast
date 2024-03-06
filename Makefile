@@ -23,3 +23,6 @@ endif
 sockets: sockets.c $(CFILES) $(HFILES)
 	@$(CC) $(CFLAGS) -o $@ $^ -I$(INCDIR) $(LIBS)
 
+clean:
+	file -f 
+

@@ -1,4 +1,5 @@
 #include "common.h"
+#define DEBUG
 #include "debug.h"
 
 #include <stdio.h>
@@ -68,7 +69,7 @@ void get_relevant_addr(void)
     free(p_adapters);
 #endif
 #ifdef LINUX_PLATFORM
-    // Get gateway
+    // Get gateway (didn't work on __APPLE__)
     FILE* fptr;
     // route -n | grep 'UG[ \t]' | awk '{print $2}'
     fptr = popen("ip route | grep default | awk '{print $3}'", "r");
@@ -108,9 +109,6 @@ void get_relevant_addr(void)
 #define LAN_PORT_SERVER "4444"
 #define PLAYER_LIMIT 4
 
-// char host_ipv4[INET_ADDRSTRLEN];
-// char broadcast[INET_ADDRSTRLEN];
-
 typedef enum _State
 {
     SEND_BROADCAST = 1,
@@ -144,35 +142,28 @@ void join_server(void)
         .ai_socktype = SOCK_DGRAM,
         .ai_protocol = IPPROTO_UDP,
     };
-    // Changed to nodename to host_ipv4 instead of broadcast
-    if (getaddrinfo(host_ipv4, LAN_PORT_SERVER, &hints, &result) != 0)
-    {
-        fprintf(stderr, "Error %d: -- %s\n", errno, gai_strerror(errno));
-        exit(EXIT_FAILURE);
-    }
+    // Changed to nodename to host_ipv4 instead of broadcast for Windows
+#ifdef WIN_PLATFORM
+    ASSERT(getaddrinfo(host_ipv4, LAN_PORT_SERVER, &hints, &result) != 0, GAI_ERR);
+#endif
+#ifdef LINUX_PLATFORM
+    ASSERT(getaddrinfo(broadcast, LAN_PORT_SERVER, &hints, &result) != 0, GAI_ERR);
+#endif
+
     socket_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
     ASSERT(socket_fd != INVALID_SOCKET, SOCKET_ERR);
     res = bind(socket_fd, result->ai_addr, result->ai_addrlen);
     ASSERT(res != SOCKET_ERROR, SOCKET_ERR);
-    res = recvfrom(socket_fd, (char *)&players[1], sizeof(struct PlayerInfo), 0, result->ai_addr, (int *)&result->ai_addrlen);
+    res = recvfrom(socket_fd, (char *)&players[1], sizeof(struct PlayerInfo), 0, result->ai_addr, &result->ai_addrlen);
     ASSERT(res != SOCKET_ERROR, SOCKET_ERR);
     nplayers++;
     // shutdown(socket_fd, SHUT_RD);
-#ifdef WIN_PLATFORM
-    closesocket(socket_fd);
-#endif
-#ifdef LINUX_PLATFORM
-    close(socket_fd);
-#endif
+    close_socket(socket_fd);
     // Bind to the server ip that was given from the broadcast
     // to send over this client's player info
     char port_str[6] = { 0 };
     sprintf(port_str, "%d", players[1].port);
-    if (getaddrinfo(players[1].server_ip, port_str, &hints, &result) != 0)
-    {
-        fprintf(stderr, "Error %d: -- %s\n", errno, gai_strerror(errno));
-        exit(EXIT_FAILURE);
-    }
+    ASSERT(getaddrinfo(players[1].server_ip, port_str, &hints, &result) != 0, GAI_ERR);
 
     socket_fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
     ASSERT(socket_fd != INVALID_SOCKET, SOCKET_ERR);       
@@ -280,6 +271,13 @@ void start_server(void)
                    printf("\nClient disconected...\n"); 
                 else
                 {
+                // MacOS - sa_len (__uint8_t) and sa_family (__uint_8t)
+                // Windows and Linux - ONLY sa_family (unsigned short int / __uint16_t)
+                // Windows and Linux will combine the values of sa_len and sa_family from MacOS
+                // So we shift  8bits to get the correct value for sa_family;
+                #if defined(WIN_PLATFORM) || defined(__linux__)
+                    players[nplayers].client_addr.sa_family >>= 8;
+                #endif
                     printf("%s has joined with port %d\n", players[nplayers].uname, players[nplayers].port);
                     nplayers++;
                 }
@@ -288,7 +286,7 @@ void start_server(void)
                 // Send all clients PlayerInfo from the server to the client that joined
                 for (int i = nplayers - 2; i != 0; i--)
                 {
-                    res = sendto(server_fd, (char *)&players[nplayers - 1], sizeof(struct PlayerInfo), 0,  &players[i].client_addr, players[i].client_sz);
+                    res = sendto(server_fd, (char *)&players[nplayers - 1], sizeof(struct PlayerInfo), 0, &players[i].client_addr, players[i].client_sz);
                     ASSERT(res != SOCKET_ERROR, SOCKET_ERR);
                     printf("Sent from %s to %s...\n", players[nplayers - 1].uname, players[i].uname);
                     
@@ -348,7 +346,7 @@ void send_broadcast(void)
     ASSERT(server_fd != INVALID_SOCKET, SOCKET_ERR);
 
     res = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_BROADCAST, (char *)&res, sizeof(res));
+    setsockopt(server_fd, SOL_SOCKET, SO_BROADCAST, &res, sizeof(res));
     
     printf("\nSending Broadcast...\n");
     while (nplayers != PLAYER_LIMIT && state == SEND_BROADCAST)
@@ -366,6 +364,7 @@ void send_broadcast(void)
         res = sendto(server_fd, (char *)&players[i], sizeof(struct PlayerInfo), 0, &players[i].client_addr, players[i].client_sz);    
         ASSERT(res != SOCKET_ERROR, SOCKET_ERR);
     }
+    printf("\nGame Starting...\n");
     close_socket(server_fd);
 }   
 

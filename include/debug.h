@@ -24,10 +24,10 @@
         {fprintf(stderr, "Failed to assert (%s:%d): Invalid error type in assert.\n", __FILE__, __LINE__);  \
         exit(EXIT_FAILURE);}})                                                                              \
 
-    #define ASSERT(exp, err_type) (ASSERT_ASSERT(err_type), (!(exp) ?           \
-        ({fprintf(stderr, "Error %d (%s:%d): -- %s", get_error(err_type),       \
-        __FILE__, __LINE__, error_str(err_type, get_error(err_type)));          \
-        exit(EXIT_FAILURE);})                                                   \
+    #define ASSERT(exp, err_type) (ASSERT_ASSERT(err_type), (!(exp) ?                     \
+        ({if (exp) {fprintf(stderr, "Error %d (%s:%d): -- %s", get_error(err_type),       \
+        __FILE__, __LINE__, error_str(err_type, get_error(err_type)));                    \
+        exit(EXIT_FAILURE);}})                                                            \
         : (exp)))
 #else
     #define ASSERT(exp, err_code, err_msg)

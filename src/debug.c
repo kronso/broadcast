@@ -1,5 +1,5 @@
-#include "common.h"
-#include "debug.h"
+#include "../include/common.h"
+#include "../include/debug.h"
 
 int get_error(enum ERROR_TYPE err_type)
 {
@@ -14,10 +14,11 @@ int get_error(enum ERROR_TYPE err_type)
 #endif
         break;
 
-        case SOCKET_ERR: 
+        case SOCKET_ERR: case GAI_ERR: 
 #ifdef WIN_PLATFORM
         err_code = WSAGetLastError();
 #endif
+
         break;
         default: err_code = INVALID_ERROR_TYPE; break;
     }
