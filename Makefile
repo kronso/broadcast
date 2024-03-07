@@ -24,11 +24,11 @@ CLEAN_CMD = rm *.o
 endif
 
 $(OBJS): $(CFILES) $(HFILES)
-	$(CC) $(CFLAGS) -c $^ -I$(INCDIR) $(LDFLAGS)
+	@$(CC) $(CFLAGS) -c $^ -I$(INCDIR) $(LDFLAGS)
 
 sockets: sockets.c $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ -I$(INCDIR) $(LDFLAGS)
+	@$(CC) $(CFLAGS) -o $@ $^ -I$(INCDIR) $(LDFLAGS)
 
 clean:
-	$(CLEAN_CMD)
+	@$(CLEAN_CMD)
 

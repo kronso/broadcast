@@ -50,17 +50,17 @@ void get_relevant_addr(void)
             if (ptr->FirstDnsServerAddress)
             {
                 PSOCKADDR_IN sock_addr = (PSOCKADDR_IN)ptr->FirstDnsServerAddress->Address.lpSockaddr;
-                ASSERT(inet_ntop(AF_INET, &sock_addr->sin_addr, gateway, INET_ADDRSTRLEN) != SOCKET_ERROR, SOCKET_ERR);
+                ASSERT(inet_ntop(AF_INET, &sock_addr->sin_addr, gateway, INET_ADDRSTRLEN) != NULL, SOCKET_ERR);
                 // Get first IP assigned 
                 sock_addr = (PSOCKADDR_IN)ptr->FirstUnicastAddress->Address.lpSockaddr;
-                ASSERT(inet_ntop(AF_INET, &sock_addr->sin_addr, host_ipv4, INET_ADDRSTRLEN) != SOCKET_ERROR, SOCKET_ERR);
+                ASSERT(inet_ntop(AF_INET, &sock_addr->sin_addr, host_ipv4, INET_ADDRSTRLEN) != NULL, SOCKET_ERR);
 
                 // Get subnet mask and do bitwise op to get directed broadcast
                 ULONG mask;
                 ConvertLengthToIpv4Mask(ptr->FirstUnicastAddress->OnLinkPrefixLength, &mask);
                 ULONG broadcast_addr = (sock_addr->sin_addr.s_addr & INADDR_BROADCAST) | ~mask;
-                ASSERT(inet_ntop(AF_INET, &mask, subnet_mask, INET_ADDRSTRLEN) != SOCKET_ERROR, SOCKET_ERR);
-                ASSERT(inet_ntop(AF_INET, &broadcast_addr, broadcast, INET_ADDRSTRLEN) != SOCKET_ERROR, SOCKET_ERR);
+                ASSERT(inet_ntop(AF_INET, &mask, subnet_mask, INET_ADDRSTRLEN) != NULL, SOCKET_ERR);
+                ASSERT(inet_ntop(AF_INET, &broadcast_addr, broadcast, INET_ADDRSTRLEN) != NULL, SOCKET_ERR);
                 break;
             }
         }
@@ -154,7 +154,12 @@ void join_server(void)
     ASSERT(socket_fd != INVALID_SOCKET, SOCKET_ERR);
     res = bind(socket_fd, result->ai_addr, result->ai_addrlen);
     ASSERT(res != SOCKET_ERROR, SOCKET_ERR);
+#ifdef WIN_PLATFORM
+    res = recvfrom(socket_fd, (char *)&players[1], sizeof(struct PlayerInfo), 0, result->ai_addr, (int *)&result->ai_addrlen);
+#endif
+#ifdef LINUX_PLATFORM
     res = recvfrom(socket_fd, (char *)&players[1], sizeof(struct PlayerInfo), 0, result->ai_addr, &result->ai_addrlen);
+#endif
     ASSERT(res != SOCKET_ERROR, SOCKET_ERR);
     nplayers++;
     // shutdown(socket_fd, SHUT_RD);
@@ -214,7 +219,6 @@ void join_server(void)
         nplayers++;
     }
     printf("\nGame starting...\n");
-    // shutdown(socket_fd, SHUT_RD);
     close_socket(client_fd);
 }
 
@@ -252,7 +256,7 @@ void start_server(void)
     while (1)
     {
 #ifdef WIN_PLATFORM
-        res = WSAPoll(&fds, nfds, 0);
+        res = WSAPoll(&fds, nfds, -1);
 #endif
 #ifdef LINUX_PLATFORM
         res = poll(&fds, nfds, 0);
@@ -274,9 +278,10 @@ void start_server(void)
                 // MacOS - sa_len (__uint8_t) and sa_family (__uint_8t)
                 // Windows and Linux - ONLY sa_family (unsigned short int / __uint16_t)
                 // Windows and Linux will combine the values of sa_len and sa_family from MacOS
-                // So we shift  8bits to get the correct value for sa_family;
                 #if defined(WIN_PLATFORM) || defined(__linux__)
-                    players[nplayers].client_addr.sa_family >>= 8;
+                    // So we shift  8bits to get the correct value for sa_family;
+                    // players[nplayers].client_addr.sa_family >>= 8;
+                    players[nplayers].client_addr.sa_family = AF_INET;
                 #endif
                     printf("%s has joined with port %d\n", players[nplayers].uname, players[nplayers].port);
                     nplayers++;
@@ -318,17 +323,6 @@ void start_server(void)
     close_socket(server_fd);
 }
 
-void handle_server(void)
-{
-#ifdef WIN_PLATFORM
-    HANDLE th;
-    th = CreateThread(NULL, 0, (LPVOID)&start_server, NULL, 0, NULL);
-#endif
-#ifdef LINUX_PLATFORM
-    pthread_t th;
-    pthread_create(&th, NULL, (void *)&start_server, NULL);
-#endif
-}
 
 void send_broadcast(void)
 {
@@ -346,7 +340,12 @@ void send_broadcast(void)
     ASSERT(server_fd != INVALID_SOCKET, SOCKET_ERR);
 
     res = 1;
+#ifdef WIN_PLATFORM
+    setsockopt(server_fd, SOL_SOCKET, SO_BROADCAST, (char *)&res, sizeof(res));
+#endif
+#ifdef LINUX_PLATFORM
     setsockopt(server_fd, SOL_SOCKET, SO_BROADCAST, &res, sizeof(res));
+#endif 
     
     printf("\nSending Broadcast...\n");
     while (nplayers != PLAYER_LIMIT && state == SEND_BROADCAST)
@@ -368,28 +367,42 @@ void send_broadcast(void)
     close_socket(server_fd);
 }   
 
+struct Server
+{
+#ifdef WIN_PLATFORM
+HANDLE th[2];
+#endif
+#ifdef LINUX_PLATFOM
+pthread_t th[2];
+#endif
+    enum 
+    {
+        GAME,
+        BROADCAST,
+    } id;
+};
+struct Server server;
+
+void handle_server(void)
+{
+#ifdef WIN_PLATFORM
+    server.th[GAME] = CreateThread(NULL, 0, (LPVOID)&start_server, NULL, 0, NULL);
+#endif
+#ifdef LINUX_PLATFORM
+    pthread_t th;
+    pthread_create(&th, NULL, (void *)&start_server, NULL);
+#endif
+}
 void handle_broadcast(void)
 {   
 #ifdef WIN_PLATFORM
-    HANDLE th;
-    th = CreateThread(NULL, 0, (LPVOID)&send_broadcast, NULL, 0, NULL);
+    server.th[BROADCAST] = CreateThread(NULL, 0, (LPVOID)&send_broadcast, NULL, 0, NULL);
 #endif
 #ifdef LINUX_PLATFORM
     pthread_t th;
     pthread_create(&th, NULL, (void *)&send_broadcast, NULL);
 #endif
 
-}
-void handle_client(void)
-{
-#ifdef WIN_PLATFORM
-    HANDLE th;
-    th = CreateThread(NULL, 0, (LPVOID)&join_server, NULL, 0, NULL);
-#endif
-#ifdef LINUX_PLATFORM
-    pthread_t th;
-    pthread_create(&th, NULL, (void *)&join_server, NULL);
-#endif
 }
 
 int main(int argc, char** argv)
@@ -424,17 +437,27 @@ int main(int argc, char** argv)
     while (state == SEND_BROADCAST)
     {
         c = getchar();      
-        if (c == 'c')
+        switch (c)
         {
-            handle_server();
-            handle_broadcast(); 
+            case 'c':
+                handle_server();
+                handle_broadcast(); 
+            break;
+            case 'j':
+                join_server();
+            break;
+            case 'e': state = END_BROADCAST; break;
+            default: break;
         }
-        else if (c == 'j')
-            handle_client();
-        else if (c == 'e')
-            state = END_BROADCAST;
     }
-    sleep_ms(1000000);
+#ifdef WIN_PLATFORM
+    WaitForSingleObject(server.th[BROADCAST], INFINITE);
+#endif
+#ifdef LINUX_PLATFORM
+    pthread_join(server_th[BROADCAST], NULL);
+#endif
+
+
 #ifdef WIN_PLATFORM
     WSACleanup();
 #endif
