@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "debug.h": "c",
+        "common.h": "c",
+        "windows.h": "c"
+    },
+    "C_Cpp.default.compilerPath": "C:\\windows\\system32\\cl.exe",
+}

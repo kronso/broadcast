@@ -1,5 +1,5 @@
-#include "../include/common.h"
-#include "../include/debug.h"
+#include "common.h"
+#include "debug.h"
 
 int get_error(enum ERROR_TYPE err_type)
 {

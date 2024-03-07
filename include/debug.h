@@ -30,5 +30,5 @@
         exit(EXIT_FAILURE);}})                                                            \
         : (exp)))
 #else
-    #define ASSERT(exp, err_code, err_msg)
+    #define ASSERT(exp, err_code)
 #endif

@@ -6,23 +6,29 @@ SRCDIR = src
 
 CFILES = $(wildcard $(SRCDIR)/*.c)
 HFILES = $(wildcard $(INCDIR)/*.h)
+OBJS = $(patsubst %.c,%.o,common.c debug.c) 
 
-LIBS = 
+LDFLAGS = 
 
-all: sockets
+CLEAN_CMD = 
 
+all: sockets clean
+	
 ifeq ($(OS), Windows_NT)
-LIBS += -luser32 -lws2_32 -liphlpapi
-CFLAGS += -DWIN_PLATFORM
+LDFLAGS += -luser32 -lws2_32 -liphlpapi
+CLEAN_CMD = del *.o/s
 else ifeq ($(shell "uname -s"), Linux)
-CFLAGS += -DLINUX_PLATFORM
+CLEAN_CMD = rm *.o
 else ifeq ($(shell "uname -s"), Darwin)
-CFLAGS += -DLINUX_PLATFORM
+CLEAN_CMD = rm *.o
 endif
 
-sockets: sockets.c $(CFILES) $(HFILES)
-	@$(CC) $(CFLAGS) -o $@ $^ -I$(INCDIR) $(LIBS)
+$(OBJS): $(CFILES) $(HFILES)
+	$(CC) $(CFLAGS) -c $^ -I$(INCDIR) $(LDFLAGS)
+
+sockets: sockets.c $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ -I$(INCDIR) $(LDFLAGS)
 
 clean:
-	file -f 
+	$(CLEAN_CMD)
 

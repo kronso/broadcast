@@ -1,5 +1,5 @@
 #include "common.h"
-#define DEBUG
+// #define DEBUG
 #include "debug.h"
 
 #include <stdio.h>
@@ -7,7 +7,7 @@
 #include <string.h>
 #include <errno.h>
 
-char gateway[INET_ADDRSTRLEN];
+char gateway[INET_ADDRSTRLEN];  
 char host_ipv4[INET_ADDRSTRLEN];
 char broadcast[INET_ADDRSTRLEN];
 char subnet_mask[INET_ADDRSTRLEN];
@@ -50,18 +50,17 @@ void get_relevant_addr(void)
             if (ptr->FirstDnsServerAddress)
             {
                 PSOCKADDR_IN sock_addr = (PSOCKADDR_IN)ptr->FirstDnsServerAddress->Address.lpSockaddr;
-                inet_ntop(AF_INET, &sock_addr->sin_addr, gateway, INET_ADDRSTRLEN);
-                
+                ASSERT(inet_ntop(AF_INET, &sock_addr->sin_addr, gateway, INET_ADDRSTRLEN) != SOCKET_ERROR, SOCKET_ERR);
                 // Get first IP assigned 
                 sock_addr = (PSOCKADDR_IN)ptr->FirstUnicastAddress->Address.lpSockaddr;
-                inet_ntop(AF_INET, &sock_addr->sin_addr, host_ipv4, INET_ADDRSTRLEN);
+                ASSERT(inet_ntop(AF_INET, &sock_addr->sin_addr, host_ipv4, INET_ADDRSTRLEN) != SOCKET_ERROR, SOCKET_ERR);
 
                 // Get subnet mask and do bitwise op to get directed broadcast
                 ULONG mask;
                 ConvertLengthToIpv4Mask(ptr->FirstUnicastAddress->OnLinkPrefixLength, &mask);
                 ULONG broadcast_addr = (sock_addr->sin_addr.s_addr & INADDR_BROADCAST) | ~mask;
-                inet_ntop(AF_INET, &mask, subnet_mask, INET_ADDRSTRLEN);
-                inet_ntop(AF_INET, &broadcast_addr, broadcast, INET_ADDRSTRLEN);
+                ASSERT(inet_ntop(AF_INET, &mask, subnet_mask, INET_ADDRSTRLEN) != SOCKET_ERROR, SOCKET_ERR);
+                ASSERT(inet_ntop(AF_INET, &broadcast_addr, broadcast, INET_ADDRSTRLEN) != SOCKET_ERROR, SOCKET_ERR);
                 break;
             }
         }
@@ -105,6 +104,7 @@ void get_relevant_addr(void)
     freeifaddrs(ip_info);
 #endif
 }
+
 #define UNAME_MAX 9
 #define LAN_PORT_SERVER "4444"
 #define PLAYER_LIMIT 4
@@ -190,7 +190,7 @@ void join_server(void)
     */
     ASSERT(getsockname(client_fd, (struct sockaddr *)&client_addr, &addr_sz) != SOCKET_ERROR, SOCKET_ERR);
     players[0].port = ntohs(client_addr.sin_port);
-    players[0].client_addr = *((struct sockaddr*)&client_addr);
+    players[0].client_addr = *((struct sockaddr *)&client_addr);
     players[0].client_sz = addr_sz;
 
     res = sendto(socket_fd, (char *)&players[0], sizeof(struct PlayerInfo), 0, result->ai_addr, result->ai_addrlen);
@@ -252,7 +252,7 @@ void start_server(void)
     while (1)
     {
 #ifdef WIN_PLATFORM
-        res = WSAPoll(&fds, nfds, -1);
+        res = WSAPoll(&fds, nfds, 0);
 #endif
 #ifdef LINUX_PLATFORM
         res = poll(&fds, nfds, 0);

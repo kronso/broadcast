@@ -1,7 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#ifndef __x86_64__
+#if __x86_64__
     #error "unsupported architecture and bit mode"
 #endif
 
@@ -27,6 +27,8 @@
     #include <iphlpapi.h>
     // #pragma comment(lib, "user32.lib");
     // #pragma comment(lib, "Ws2_32.lib");
+    #undef INET_ADDRSTRLEN
+    #define INET_ADDRSTRLEN 16
 #endif
 #ifdef LINUX_PLATFORM
     #define _GNU_SOURCE
