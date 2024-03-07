@@ -80,7 +80,7 @@ void get_relevant_addr(void)
     struct ifaddrs* ip_info, *ip_ptr;
     getifaddrs(&ip_info);
     
-    int flags = IFF_BROADCAST | IFF_UP | IFF_POINTOPOINT | IFF_RUNNING;
+    int flags = IFF_BROADCAST;
     for (ip_ptr = ip_info; ip_ptr != NULL; ip_ptr = ip_ptr->ifa_next)
     {
         if (ip_ptr->ifa_flags & flags && ip_ptr->ifa_addr->sa_family == AF_INET)
@@ -409,6 +409,9 @@ int main(int argc, char** argv)
     }
 #endif
     get_relevant_addr();
+    printf("%s\n", broadcast);
+    printf("%s\n", host_ipv4);
+    printf("%s\n", gateway);
 
     memcpy(players[0].uname, argv[1], UNAME_MAX);
     memcpy(players[0].server_ip, host_ipv4, INET_ADDRSTRLEN);
